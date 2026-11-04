@@ -1,10 +1,12 @@
 # mcp-stdio-guard
 
-[https://img.shields.io/badge/release-v0.1.0-0969da?style=flat-square]
-[https://img.shields.io/badge/python-3.9%2B-3776AB?style=flat-square]
-[https://img.shields.io/badge/dependencies-zero-2da44e?style=flat-square]
-[https://img.shields.io/badge/MCP-stdio%20firewall-8250df?style=flat-square]
-[https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square]
+<p>
+  <img src="https://img.shields.io/badge/release-v0.1.0-0969da?style=flat-square" alt="Release v0.1.0" />
+  <img src="https://img.shields.io/badge/python-3.9%2B-3776AB?style=flat-square" alt="Python 3.9+" />
+  <img src="https://img.shields.io/badge/dependencies-zero-2da44e?style=flat-square" alt="Zero Dependencies" />
+  <img src="https://img.shields.io/badge/MCP-stdio%20firewall-8250df?style=flat-square" alt="MCP Firewall" />
+  <img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square" alt="MIT License" />
+</p>
 
 > **Note:** Extracted and migrated from our internal self-hosted GitLab security tooling to GitHub as a standalone, zero-dependency MIT-licensed package.
 
@@ -12,19 +14,25 @@
 
 ## Architecture & Data Flow
 
-    +----------------------+       JSON-RPC 2.0 (in)       +-----------------------------+
-    |  Claude Code / Host  | ----------------------------> |        MCPStdioGuard        |
-    |     (MCP Client)     | <---------------------------- |  1. Path.resolve() Sandbox  |
-    +----------------------+    Sanitized Stream (out)     |  2. Shell Metachar Blocker  |
-                                                           |  3. Shannon Entropy Scrub   |
-                                                           +--------------+--------------+
-                                                                          |
-                                                                          | stdio pipe
-                                                                          v
-                                                           +-----------------------------+
-                                                           |     Upstream MCP Server     |
-                                                           |   (Filesystem / Git / DB)   |
-                                                           +-----------------------------+
+    +---------------------------------------+
+    |       Claude Code / MCP Client        |
+    +-------------------+-------------------+
+                        |
+         JSON-RPC 2.0   |   Sanitized
+         Inbound        v   Outbound
+    +---------------------------------------+
+    |             MCPStdioGuard             |
+    |  1. Path.resolve() Sandbox Boundary   |
+    |  2. Shell Metacharacter Inspection    |
+    |  3. Shannon Entropy Secret Redaction  |
+    +-------------------+-------------------+
+                        |
+           stdio pipe   |   raw output
+                        v
+    +---------------------------------------+
+    |          Upstream MCP Server          |
+    |       (Filesystem / Git / Shell)      |
+    +---------------------------------------+
 
 ## Why Zero-Dependency?
 Security middleware sitting directly in the stdio pipe between an LLM agent and local tools must have a **zero external dependency tree** to prevent supply-chain poisoning and keep startup latency under `2ms`.
