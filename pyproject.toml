@@ -1,15 +1,15 @@
 [build-system]
-requires = ["setuptools>=68.0"]
+requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-stdio-guard"
-version = "0.1.0"
-description = "Zero-dependency JSON-RPC 2.0 stdio security interceptor and Shannon-entropy secret firewall for MCP servers"
+version = "0.2.0"
+description = "Zero-dependency JSON-RPC 2.0 stdio security interceptor and secret firewall for Model Context Protocol (MCP) servers"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
-keywords = ["mcp", "model-context-protocol", "security", "json-rpc", "firewall", "anthropic"]
+keywords = ["mcp", "model-context-protocol", "security", "json-rpc", "firewall", "stdio"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -17,4 +17,9 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Security",
 ]
-py-modules = ["mcp_guard"]
+
+[project.scripts]
+mcp-stdio-guard = "cli:main"
+
+[tool.setuptools]
+py-modules = ["mcp_guard", "cli"]
