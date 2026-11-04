@@ -1,16 +1,15 @@
 # mcp-stdio-guard
 
 <p>
-  <img src="https://img.shields.io/badge/release-v0.1.0-0969da?style=flat-square" alt="Release v0.1.0" />
+  <img src="https://img.shields.io/badge/version-v0.2.0-0969da?style=flat-square" alt="Version v0.2.0" />
   <img src="https://img.shields.io/badge/python-3.9%2B-3776AB?style=flat-square" alt="Python 3.9+" />
   <img src="https://img.shields.io/badge/dependencies-zero-2da44e?style=flat-square" alt="Zero Dependencies" />
-  <img src="https://img.shields.io/badge/MCP-stdio%20firewall-8250df?style=flat-square" alt="MCP Firewall" />
   <img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square" alt="MIT License" />
 </p>
 
-> **Note:** Extracted and migrated from our internal self-hosted GitLab security tooling to GitHub as a standalone, zero-dependency MIT-licensed package.
+`mcp-stdio-guard` is a lightweight, zero-dependency Python security interceptor and secret-redaction proxy for **Model Context Protocol (MCP)** `JSON-RPC 2.0` stdio streams. It sits between an MCP client (such as Claude Code or Claude Desktop) and an upstream MCP server to prevent accidental credential exfiltration, symlink/path traversal outside allowed workspace roots, and destructive shell commands.
 
-`mcp-stdio-guard` is a zero-dependency security interceptor and secret-redaction firewall for **Model Context Protocol (MCP)** `JSON-RPC 2.0` stdio streams. It protects local AI coding agents and MCP servers against accidental credential exfiltration, symlink/path traversal outside workspace roots, and shell metacharacter injection.
+> **Ecosystem & Naming Note:** This Python security proxy (`pip install .` / `mcp_guard`) is unrelated to the npm stdout-formatting test package of the same name. Unlike heavier policy gateways (`mcpwall`, `agentsec-gateway`), `mcp-stdio-guard` focuses on being an auditable, zero-dependency Python stdlib wrapper for per-server stdio sandboxing with ~0.6ms per-frame inspection overhead.
 
 ## Architecture & Data Flow
 
@@ -18,37 +17,41 @@
     |       Claude Code / MCP Client        |
     +-------------------+-------------------+
                         |
-         JSON-RPC 2.0   |   Sanitized
-         Inbound        v   Outbound
+         JSON-RPC 2.0   |   Sanitized Output or
+         Inbound        v   -32001 Error Frame
     +---------------------------------------+
     |             MCPStdioGuard             |
-    |  1. Path.resolve() Sandbox Boundary   |
-    |  2. Shell Metacharacter Inspection    |
-    |  3. Shannon Entropy Secret Redaction  |
+    |  1. Universal Path.resolve() Sandbox  |
+    |  2. Tool-Scoped Shell Command Guard   |
+    |  3. Dual Base64/Hex Entropy Scrubber  |
     +-------------------+-------------------+
                         |
-           stdio pipe   |   raw output
+           stdio pipe   |   raw output (EOF-safe)
                         v
     +---------------------------------------+
     |          Upstream MCP Server          |
     |       (Filesystem / Git / Shell)      |
     +---------------------------------------+
 
-## Why Zero-Dependency?
-Security middleware sitting directly in the stdio pipe between an LLM agent and local tools must have a **zero external dependency tree** to prevent supply-chain poisoning and keep startup latency under `2ms`.
-
 ## Threat Mitigation Matrix
 
 | Layer | Mechanism | Threat Mitigated |
 | :--- | :--- | :--- |
-| **Shannon Entropy Scrubber** | Computes entropy (`>= 4.35 bits/char`) on candidate tokens | Leaks of unindexed API keys, session secrets, and credentials into LLM context |
-| **Signature Redaction** | Pre-compiled rules for Anthropic (`sk-ant-api03`), OpenAI, AWS IAM, GitHub PAT, JWT, and PEM | Accidental secret exposure during file-read or log-inspection tool calls |
-| **Path Canonicalization** | `Path.resolve()` boundary enforcement against `allowed_roots` | `../` path traversal and symlink escapes in MCP filesystem tools |
-| **Command Guard** | Pattern inspection on inbound `tools/call` arguments | Destructive shell chaining (`rm -rf`, pipe-to-shell) from prompt injection |
+| **Dual Entropy Scrubber** | Base64 (`>= 4.35 bits/char`) & Hex (`>= 3.50 bits/char`, where $\log_2(16)=4.0$) | Leaks of unindexed API keys, hex tokens, and session secrets into LLM context |
+| **22+ Secret Signatures & Dict Keys** | Pre-compiled rules for Anthropic, OpenAI, AWS, GitHub, JWT, PEM, DB URIs, `password=...`, and sensitive JSON keys | Accidental credential exposure in config files, `.env` reads, or logs |
+| **Binary-Safe Exemption** | Preserves MCP `image`/`audio`/`data` fields, Data URIs, and binary magic headers (`PNG`, `JPEG`, `PDF`, `ZIP`) | Prevents false-positive corruption of base64 binary payloads |
+| **Universal Path Sandbox** | `Path.resolve()` canonicalization across 24 path keys, `file://` URIs, arrays, and path-like string values | `../` path traversal and unauthorized reads (e.g. `/etc/passwd`) |
+| **Tool-Scoped Shell Guard** | Inspects shell tools/arguments (`rm -rf`/`-fr`, newline injection, `curl/wget \| python/sh`, reverse shells) | Destructive shell execution while allowing Markdown backticks in `write_file` |
+| **Protocol-Compliant Proxy** | Returns standard JSON-RPC `-32001` error frames on blocked requests and propagates `stdin` EOF cleanly | Prevents client hangs on blocked tool calls or orphaned server processes |
 
-## CLI Proxy Usage (`cli.py`)
+## Installation & CLI Proxy Usage
 
-    python3 cli.py --root /workspace --entropy 4.35 -- npx -y @modelcontextprotocol/server-filesystem /workspace
+    pip install .
+    mcp-stdio-guard --root /workspace --entropy 4.35 -- npx -y @modelcontextprotocol/server-filesystem /workspace
+
+Or run directly without installation:
+
+    python3 cli.py --root /workspace -- npx -y @modelcontextprotocol/server-filesystem /workspace
 
 ## Library Usage (`mcp_guard.py`)
 
